@@ -1,46 +1,47 @@
-#include <MQTT.h> 
+#include <MQTT.h>
 
 const int trigPin = D2; // Trigger pin
 const int echoPin = D3; // Echo pin
-const int ledPin = D4; 
+const int ledPin = D4;
 
 double duration, distance;
 const double speed_of_sound = 0.0343; // Speed of sound at 20°C
 
+unsigned long previousMillis = 0; // Variable to store the previous millis value
+unsigned long interval = 5000; // Interval in milliseconds for publishing messages
+
 bool ignoreMessage;
+int ledFlashCount = 0; // Counter for LED flash count
 
 // MQTT client instance
 MQTT client("broker.emqx.io", 1883, callback);
 
 // Callback function for MQTT messages.
-void callback(char* topic, uint8_t* payload, unsigned int length) 
+void callback(char *topic, uint8_t *payload, unsigned int length)
 {
-    // The system should not react to messages that the 'wave' is sending.
-    if (String(topic) == "SIT210/wave" && String((const char*)payload, length) == "Name") 
+    // Check if the received topic is the same as the topic being sent
+    if (String(topic) == "SIT210/wave" && String((const char*)payload, length) != "Name") 
     {
-        ignoreMessage = true; 
-        return; // Exit the callback function.
-    }
-  
-    // Write received messages from the EMQX broker to serial monitor.
-    Serial.println("Message received:");
-    Serial.print("Topic: ");
-    Serial.println(topic);
-    Serial.print("Payload: ");
-    Serial.write(payload, length);
-    Serial.println();
-  
-    // Flash LED 3 times.
-    for (int i = 0; i < 3; i++) 
-    {
-        digitalWrite(ledPin, HIGH);
-        delay(100);
-        digitalWrite(ledPin, LOW);
-        delay(100);
+        // Write received messages from the EMQX broker to serial monitor.
+        Serial.println("Message received:");
+        Serial.print("Topic: ");
+        Serial.println(topic);
+        Serial.print("Payload: ");
+        Serial.write(payload, length);
+        Serial.println();
+        
+        // Flash the LED 3 times
+        for (int i = 0; i < 3; i++)
+        {
+            digitalWrite(ledPin, HIGH);
+            delay(500);
+            digitalWrite(ledPin, LOW);
+            delay(500);
+        }
     }
 }
 
-void setup() 
+void setup()
 {
     Serial.begin(9600);
     
@@ -48,50 +49,52 @@ void setup()
     pinMode(trigPin, OUTPUT);
     pinMode(echoPin, INPUT);
     pinMode(ledPin, OUTPUT);
-
+    
     // Connect to MQTT broker and provide a unique client ID.
-    client.connect("mqttx_f13c10c0" + String(Time.now())); 
-  
-    if (client.isConnected()) 
+    client.connect("mqttx_f13c10c0" + String(Time.now()));
+    
+    if (client.isConnected())
     {
         Serial.println("Connected to MQTT broker");
-        // Subscribe to "SIT210/wave" 
+        // Subscribe to "SIT210/wave"
         client.subscribe("SIT210/wave");
-        // Publish to "SIT210/wave" 
-        client.publish("SIT210/wave","hello world");
-    } 
-    else 
+    }
+    else
     {
         Serial.println("Failed to connect to MQTT broker");
     }
+    
+    ignoreMessage = false;
 }
 
-void loop() 
+void loop()
 {
     if (client.isConnected())
     {
         // MQTT client loop for handling incoming messages.
         client.loop();
-          
-        // If ignore flag is set to true, reset it after a delay.
-        if (ignoreMessage)
-        {
-            delay(5000); 
-            ignoreMessage = false; 
-        }
     }
-
+    
     // Measure distance with ultrasonic sensor.
     distance = getDistance();
     
-    // If distance is less than 10 cm, publish a message with a name.
-    if (distance < 10) 
+    // If distance is less than 10 cm, publish a message with "Katrina" as payload.
+    if (distance < 10 && !ignoreMessage)
     {
-        client.publish("SIT210/wave", "Name");
+        // Publish to "SIT210/wave" with "Name" as payload.
+        client.publish("SIT210/wave", "Katrina", 0);
+        ignoreMessage = true;        // Set ignoreMessage flag to true
+        previousMillis = millis();   // Store the current millis value
+    }
+    
+    // Check if it's time to reset the ignoreMessage flag
+    if (ignoreMessage && (millis() - previousMillis >= interval))
+    {
+        ignoreMessage = false; // Reset ignoreMessage flag to false
     }
 }
 
-// calculate distance measured by ultrasonic sensor.
+// Calculate distance measured by ultrasonic sensor.
 double getDistance()
 {
     digitalWrite(trigPin, LOW);
@@ -103,6 +106,6 @@ double getDistance()
     digitalWrite(trigPin, LOW);
     duration = pulseIn(echoPin, HIGH);
     
-    distance = (duration*speed_of_sound)/2;
+    distance = (duration * speed_of_sound) / 2;
     return (distance);
 }
