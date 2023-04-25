@@ -16,7 +16,7 @@ MQTT client("broker.emqx.io", 1883, callback);
 void callback(char* topic, uint8_t* payload, unsigned int length) 
 {
     // The system should not react to messages that the 'wave' is sending.
-    if (String(topic) == "SIT210/wave" && String((const char*)payload, length) == "Katrina") 
+    if (String(topic) == "SIT210/wave" && String((const char*)payload, length) == "Name") 
     {
         ignoreMessage = true; 
         return; // Exit the callback function.
@@ -87,7 +87,7 @@ void loop()
     // If distance is less than 10 cm, publish a message with a name.
     if (distance < 10) 
     {
-        client.publish("SIT210/wave", "Katrina");
+        client.publish("SIT210/wave", "Name");
     }
 }
 
